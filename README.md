@@ -71,10 +71,6 @@ Response               (intent | route | model | latency | cost)
 
 The system classifies intent and routes accordingly.
 
-These values should come from real runs of your deployed or local
-system. Replace the numbers below with captured outputs before
-publishing.
-
 **Simple question -> cheap model**
 
 ```text
