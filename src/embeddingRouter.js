@@ -14,6 +14,8 @@ const EMBEDDING_MODELS = configuredModels
 const EMBEDDING_BASE_URL =
   process.env.EMBEDDING_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/models";
 const CONFIDENCE_THRESHOLD = 0.60;
+const PREWARM_PACE_MS = 100;
+const RETRY_DELAYS_MS = [2000, 4000, 6000];
 
 const intentExamples = {
   greeting: [
@@ -153,6 +155,14 @@ function getEmbeddingValues(payload) {
   return payload?.embedding?.values || payload?.embeddings?.[0]?.values || null;
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(error) {
+  return error?.response?.status === 429;
+}
+
 async function embedTextWithModel(model, text) {
   if (!config.googleApiKey) {
     throw new Error("GOOGLE_API_KEY is not configured");
@@ -178,6 +188,29 @@ async function embedTextWithModel(model, text) {
   return values;
 }
 
+async function embedTextWithRetry(model, text) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await embedTextWithModel(model, text);
+    } catch (error) {
+      lastError = error;
+      if (!isRateLimitError(error) || attempt === RETRY_DELAYS_MS.length) {
+        throw error;
+      }
+
+      const delayMs = RETRY_DELAYS_MS[attempt];
+      console.warn(
+        `Embedding API rate limited for model ${model}. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}).`
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError;
+}
+
 async function selectActiveModel() {
   if (activeEmbeddingModel) {
     return activeEmbeddingModel;
@@ -186,7 +219,7 @@ async function selectActiveModel() {
   const errors = [];
   for (const model of EMBEDDING_MODELS) {
     try {
-      await embedTextWithModel(model, "embedding router warmup");
+      await embedTextWithRetry(model, "embedding router warmup");
       activeEmbeddingModel = model;
       console.log(`Embedding router using model: ${model}`);
       return model;
@@ -206,8 +239,9 @@ async function buildExampleEmbeddingIndex() {
   for (const intent of ALLOWED_INTENTS) {
     index[intent] = [];
     for (const example of intentExamples[intent]) {
-      const vector = await embedTextWithModel(model, example);
+      const vector = await embedTextWithRetry(model, example);
       index[intent].push({ example, vector });
+      await sleep(PREWARM_PACE_MS);
     }
   }
 
@@ -315,4 +349,3 @@ module.exports = {
   cosineSimilarity,
   intentExamples
 };
-

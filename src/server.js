@@ -97,6 +97,16 @@ async function ensureDemoTenant() {
   console.log(`Demo tenant auto-seeded from DEMO_TENANT_API_KEY: ${tenant.tenantId}`);
 }
 
+function startEmbeddingPrewarm() {
+  prewarmIntentEmbeddings()
+    .then(() => {
+      console.log("Embedding prewarm completed successfully.");
+    })
+    .catch(error => {
+      console.error("Embedding prewarm failed in background:", error.message);
+    });
+}
+
 async function rateLimit(req, res, next) {
   try {
     await connectRedis();
@@ -384,12 +394,13 @@ function createApp(overrides = {}) {
 if (require.main === module) {
   logStartupWarnings();
 
-  Promise.all([prewarmIntentEmbeddings(), connectRedis()])
+  connectRedis()
     .then(() => ensureDemoTenant())
     .then(() => {
       const app = createApp();
       app.listen(config.port, () => {
         console.log(`AI Router running on http://localhost:${config.port}`);
+        startEmbeddingPrewarm();
       });
     })
     .catch(error => {
