@@ -1,3 +1,7 @@
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)
+![Open Source](https://img.shields.io/badge/Open%20Source-yes-brightgreen.svg)
+
 # AI Gateway - Intelligent LLM Routing Infrastructure
 
 An AI inference gateway that sits between applications and LLM
